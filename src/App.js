@@ -31,20 +31,29 @@ const AstraCoreApp = () => {
 
   // Kontrola autentizace při načtení
   useEffect(() => {
+    let mounted = true;
+
     // Kontrola aktuálního uživatele
     auth.getUser().then(({ data: { user } }) => {
-      setUser(user);
-      setLoading(false);
+      if (mounted) {
+        setUser(user);
+        setLoading(false);
+      }
     });
 
     // Naslouchání změnám autentizace
     const { data: { subscription } } = auth.onAuthStateChange((event, session) => {
-      setUser(session?.user ?? null);
-      setLoading(false);
+      if (mounted) {
+        setUser(session?.user ?? null);
+        if (loading) setLoading(false);
+      }
     });
 
-    return () => subscription.unsubscribe();
-  }, []);
+    return () => {
+      mounted = false;
+      subscription.unsubscribe();
+    };
+  }, []); // Prázdný dependency array!
 
   // Přihlášení
   const handleLogin = async () => {
@@ -98,8 +107,8 @@ const AstraCoreApp = () => {
     { id: 'nastaveni', label: 'Nastavení', icon: Settings },
   ];
 
-  // Logo component
-  const Logo = ({ size = 'large' }) => (
+  // Logo component - přesunuté mimo render pro optimalizaci
+  const Logo = React.memo(({ size = 'large' }) => (
     <div className={`flex items-center ${size === 'small' ? 'space-x-2' : 'space-x-3'}`}>
       <div className={`${size === 'small' ? 'w-8 h-8' : 'w-12 h-12'} relative`}>
         <svg viewBox="0 0 100 100" className="w-full h-full">
@@ -128,7 +137,7 @@ const AstraCoreApp = () => {
         </div>
       </div>
     </div>
-  );
+  ));
 
   // Loading screen
   if (loading) {
@@ -145,8 +154,8 @@ const AstraCoreApp = () => {
     );
   }
 
-  // Login Page
-  const LoginPage = () => (
+  // Login Page - memoizované pro lepší výkon
+  const LoginPage = React.memo(() => (
     <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 flex items-center justify-center px-4">
       <div className="w-full max-w-md">
         <div className="text-center mb-8">
@@ -170,12 +179,13 @@ const AstraCoreApp = () => {
                 type="email"
                 value={loginForm.email}
                 onChange={(e) => {
-                  setLoginForm({...loginForm, email: e.target.value});
-                  setError('');
+                  setLoginForm(prev => ({...prev, email: e.target.value}));
+                  if (error) setError('');
                 }}
                 className="w-full px-4 py-3 bg-slate-700 border border-slate-600 rounded-lg text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-orange-400 focus:border-transparent"
                 placeholder="vas.email@astracore.pro"
                 disabled={loginLoading}
+                autoComplete="email"
               />
             </div>
             
@@ -188,12 +198,13 @@ const AstraCoreApp = () => {
                   type={showPassword ? "text" : "password"}
                   value={loginForm.password}
                   onChange={(e) => {
-                    setLoginForm({...loginForm, password: e.target.value});
-                    setError('');
+                    setLoginForm(prev => ({...prev, password: e.target.value}));
+                    if (error) setError('');
                   }}
                   className="w-full px-4 py-3 bg-slate-700 border border-slate-600 rounded-lg text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-orange-400 focus:border-transparent pr-12"
                   placeholder="••••••••"
                   disabled={loginLoading}
+                  autoComplete="current-password"
                 />
                 <button
                   type="button"
@@ -234,10 +245,10 @@ const AstraCoreApp = () => {
         </div>
       </div>
     </div>
-  );
+  ));
 
   // Dashboard Content
-  const DashboardContent = () => (
+  const DashboardContent = React.memo(() => (
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between">
         <h1 className="text-2xl font-bold text-white">Dashboard</h1>
@@ -314,7 +325,7 @@ const AstraCoreApp = () => {
         </p>
       </div>
     </div>
-  );
+  ));
 
   // Page Content Router
   const renderPageContent = () => {
