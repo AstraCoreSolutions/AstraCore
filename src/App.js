@@ -53,7 +53,7 @@ const AstraCoreApp = () => {
       mounted = false;
       subscription.unsubscribe();
     };
-  }, []); // Prázdný dependency array!
+  }, [loading]); // Přidáno loading do dependency array
 
   // Přihlášení
   const handleLogin = async () => {
@@ -315,7 +315,7 @@ const AstraCoreApp = () => {
       {/* Welcome message with user info */}
       <div className="bg-slate-800 rounded-xl p-6 border border-slate-700">
         <h2 className="text-xl font-semibold text-white mb-2">
-          Vítejte zpět! 👋
+          Vítejte zpět!
         </h2>
         <p className="text-slate-400">
           Přihlášen jako: <span className="text-orange-400">{user?.email}</span>
