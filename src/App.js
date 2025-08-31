@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { auth } from './supabase';
 import { 
   LayoutDashboard, 
@@ -29,23 +29,46 @@ const AstraCoreApp = () => {
   const [loginLoading, setLoginLoading] = useState(false);
   const [error, setError] = useState('');
 
+  // Memoizované callback funkce pro input handlery
+  const handleEmailChange = useCallback((e) => {
+    setLoginForm(prev => ({...prev, email: e.target.value}));
+    if (error) setError('');
+  }, [error]);
+
+  const handlePasswordChange = useCallback((e) => {
+    setLoginForm(prev => ({...prev, password: e.target.value}));
+    if (error) setError('');
+  }, [error]);
+
+  const togglePasswordVisibility = useCallback(() => {
+    setShowPassword(prev => !prev);
+  }, []);
+
   // Kontrola autentizace při načtení
   useEffect(() => {
     let mounted = true;
 
-    // Kontrola aktuálního uživatele
-    auth.getUser().then(({ data: { user } }) => {
-      if (mounted) {
-        setUser(user);
-        setLoading(false);
+    const checkAuth = async () => {
+      try {
+        const { data: { user } } = await auth.getUser();
+        if (mounted) {
+          setUser(user);
+          setLoading(false);
+        }
+      } catch (err) {
+        if (mounted) {
+          setLoading(false);
+        }
       }
-    });
+    };
+
+    checkAuth();
 
     // Naslouchání změnám autentizace
     const { data: { subscription } } = auth.onAuthStateChange((event, session) => {
       if (mounted) {
         setUser(session?.user ?? null);
-        if (loading) setLoading(false);
+        setLoading(false);
       }
     });
 
@@ -53,10 +76,10 @@ const AstraCoreApp = () => {
       mounted = false;
       subscription.unsubscribe();
     };
-  }, [loading]); // Přidáno loading do dependency array
+  }, []);
 
   // Přihlášení
-  const handleLogin = async () => {
+  const handleLogin = useCallback(async () => {
     if (!loginForm.email || !loginForm.password) {
       setError('Vyplňte email a heslo');
       return;
@@ -80,18 +103,18 @@ const AstraCoreApp = () => {
     } finally {
       setLoginLoading(false);
     }
-  };
+  }, [loginForm.email, loginForm.password]);
 
   // Odhlášení
-  const handleLogout = async () => {
+  const handleLogout = useCallback(async () => {
     await auth.signOut();
     setCurrentPage('dashboard');
     setLoginForm({ email: '', password: '' });
-  };
+  }, []);
 
-  const handleForgotPassword = () => {
+  const handleForgotPassword = useCallback(() => {
     alert('Funkce "Zapomenuté heslo" bude implementována později');
-  };
+  }, []);
 
   const navigationItems = [
     { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
@@ -107,7 +130,7 @@ const AstraCoreApp = () => {
     { id: 'nastaveni', label: 'Nastavení', icon: Settings },
   ];
 
-  // Logo component - přesunuté mimo render pro optimalizaci
+  // Logo component
   const Logo = React.memo(({ size = 'large' }) => (
     <div className={`flex items-center ${size === 'small' ? 'space-x-2' : 'space-x-3'}`}>
       <div className={`${size === 'small' ? 'w-8 h-8' : 'w-12 h-12'} relative`}>
@@ -154,101 +177,97 @@ const AstraCoreApp = () => {
     );
   }
 
-  // Login Page - memoizované pro lepší výkon
-  const LoginPage = React.memo(() => (
-    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 flex items-center justify-center px-4">
-      <div className="w-full max-w-md">
-        <div className="text-center mb-8">
-          <Logo />
-          <p className="text-slate-400 mt-4">Přihlaste se do firemního systému</p>
-        </div>
-        
-        <div className="bg-slate-800 rounded-xl p-8 shadow-2xl border border-slate-700">
-          <div className="space-y-6">
-            {error && (
-              <div className="bg-red-500/10 border border-red-500/20 rounded-lg p-3">
-                <p className="text-red-400 text-sm text-center">{error}</p>
-              </div>
-            )}
-
-            <div>
-              <label className="block text-sm font-medium text-slate-300 mb-2">
-                Email
-              </label>
-              <input
-                type="email"
-                value={loginForm.email}
-                onChange={(e) => {
-                  setLoginForm(prev => ({...prev, email: e.target.value}));
-                  if (error) setError('');
-                }}
-                className="w-full px-4 py-3 bg-slate-700 border border-slate-600 rounded-lg text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-orange-400 focus:border-transparent"
-                placeholder="vas.email@astracore.pro"
-                disabled={loginLoading}
-                autoComplete="email"
-              />
-            </div>
-            
-            <div>
-              <label className="block text-sm font-medium text-slate-300 mb-2">
-                Heslo
-              </label>
-              <div className="relative">
-                <input
-                  type={showPassword ? "text" : "password"}
-                  value={loginForm.password}
-                  onChange={(e) => {
-                    setLoginForm(prev => ({...prev, password: e.target.value}));
-                    if (error) setError('');
-                  }}
-                  className="w-full px-4 py-3 bg-slate-700 border border-slate-600 rounded-lg text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-orange-400 focus:border-transparent pr-12"
-                  placeholder="••••••••"
-                  disabled={loginLoading}
-                  autoComplete="current-password"
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowPassword(!showPassword)}
-                  className="absolute right-3 top-1/2 transform -translate-y-1/2 text-slate-400 hover:text-white transition-colors"
-                  disabled={loginLoading}
-                >
-                  {showPassword ? <EyeOff size={20} /> : <Eye size={20} />}
-                </button>
-              </div>
-            </div>
-            
-            <button
-              onClick={handleLogin}
-              disabled={loginLoading}
-              className="w-full bg-gradient-to-r from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700 text-white font-medium py-3 px-6 rounded-lg transition-all duration-200 transform hover:scale-[1.02] focus:outline-none focus:ring-2 focus:ring-orange-400 focus:ring-offset-2 focus:ring-offset-slate-800 disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none"
-            >
-              {loginLoading ? (
-                <div className="flex items-center justify-center">
-                  <Loader2 className="w-4 h-4 animate-spin mr-2" />
-                  Přihlašování...
-                </div>
-              ) : (
-                'Přihlásit se'
-              )}
-            </button>
+  // Login Page
+  if (!user) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 flex items-center justify-center px-4">
+        <div className="w-full max-w-md">
+          <div className="text-center mb-8">
+            <Logo />
+            <p className="text-slate-400 mt-4">Přihlaste se do firemního systému</p>
           </div>
           
-          <div className="mt-6 text-center">
-            <button 
-              onClick={handleForgotPassword}
-              className="text-sm text-orange-400 hover:text-orange-300 transition-colors"
-              disabled={loginLoading}
-            >
-              Zapomněli jste heslo?
-            </button>
+          <div className="bg-slate-800 rounded-xl p-8 shadow-2xl border border-slate-700">
+            <div className="space-y-6">
+              {error && (
+                <div className="bg-red-500/10 border border-red-500/20 rounded-lg p-3">
+                  <p className="text-red-400 text-sm text-center">{error}</p>
+                </div>
+              )}
+
+              <div>
+                <label className="block text-sm font-medium text-slate-300 mb-2">
+                  Email
+                </label>
+                <input
+                  type="email"
+                  value={loginForm.email}
+                  onChange={handleEmailChange}
+                  className="w-full px-4 py-3 bg-slate-700 border border-slate-600 rounded-lg text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-orange-400 focus:border-transparent"
+                  placeholder="vas.email@astracore.pro"
+                  disabled={loginLoading}
+                  autoComplete="email"
+                />
+              </div>
+              
+              <div>
+                <label className="block text-sm font-medium text-slate-300 mb-2">
+                  Heslo
+                </label>
+                <div className="relative">
+                  <input
+                    type={showPassword ? "text" : "password"}
+                    value={loginForm.password}
+                    onChange={handlePasswordChange}
+                    className="w-full px-4 py-3 bg-slate-700 border border-slate-600 rounded-lg text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-orange-400 focus:border-transparent pr-12"
+                    placeholder="••••••••"
+                    disabled={loginLoading}
+                    autoComplete="current-password"
+                  />
+                  <button
+                    type="button"
+                    onClick={togglePasswordVisibility}
+                    className="absolute right-3 top-1/2 transform -translate-y-1/2 text-slate-400 hover:text-white transition-colors"
+                    disabled={loginLoading}
+                  >
+                    {showPassword ? <EyeOff size={20} /> : <Eye size={20} />}
+                  </button>
+                </div>
+              </div>
+              
+              <button
+                onClick={handleLogin}
+                disabled={loginLoading}
+                className="w-full bg-gradient-to-r from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700 text-white font-medium py-3 px-6 rounded-lg transition-all duration-200 transform hover:scale-[1.02] focus:outline-none focus:ring-2 focus:ring-orange-400 focus:ring-offset-2 focus:ring-offset-slate-800 disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none"
+              >
+                {loginLoading ? (
+                  <div className="flex items-center justify-center">
+                    <Loader2 className="w-4 h-4 animate-spin mr-2" />
+                    Přihlašování...
+                  </div>
+                ) : (
+                  'Přihlásit se'
+                )}
+              </button>
+            </div>
+            
+            <div className="mt-6 text-center">
+              <button 
+                onClick={handleForgotPassword}
+                className="text-sm text-orange-400 hover:text-orange-300 transition-colors"
+                disabled={loginLoading}
+              >
+                Zapomněli jste heslo?
+              </button>
+            </div>
           </div>
         </div>
       </div>
-    </div>
-  ));
+    );
+  }
 
   // Dashboard Content
-  const DashboardContent = React.memo(() => (
+  const DashboardContent = () => (
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between">
         <h1 className="text-2xl font-bold text-white">Dashboard</h1>
@@ -325,7 +344,7 @@ const AstraCoreApp = () => {
         </p>
       </div>
     </div>
-  ));
+  );
 
   // Page Content Router
   const renderPageContent = () => {
@@ -368,7 +387,7 @@ const AstraCoreApp = () => {
   };
 
   // Main App Layout
-  const MainApp = () => (
+  return (
     <div className="min-h-screen bg-slate-900 flex">
       {/* Sidebar */}
       <div className={`
@@ -456,8 +475,6 @@ const AstraCoreApp = () => {
       )}
     </div>
   );
-
-  return user ? <MainApp /> : <LoginPage />;
 };
 
 export default AstraCoreApp;
