@@ -1,4 +1,5 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import { auth } from './supabase';
 import { 
   LayoutDashboard, 
   DollarSign, 
@@ -14,26 +15,67 @@ import {
   X,
   LogOut,
   Eye,
-  EyeOff
+  EyeOff,
+  Loader2
 } from 'lucide-react';
 
 const AstraCoreApp = () => {
-  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [user, setUser] = useState(null);
+  const [loading, setLoading] = useState(true);
   const [currentPage, setCurrentPage] = useState('dashboard');
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [loginForm, setLoginForm] = useState({ email: '', password: '' });
+  const [loginLoading, setLoginLoading] = useState(false);
+  const [error, setError] = useState('');
 
-  // Simulace přihlášení - později nahradit Supabase auth
-  const handleLogin = () => {
-    // Dočasně - jakékoliv přihlášení projde
-    if (loginForm.email && loginForm.password) {
-      setIsAuthenticated(true);
+  // Kontrola autentizace při načtení
+  useEffect(() => {
+    // Kontrola aktuálního uživatele
+    auth.getUser().then(({ data: { user } }) => {
+      setUser(user);
+      setLoading(false);
+    });
+
+    // Naslouchání změnám autentizace
+    const { data: { subscription } } = auth.onAuthStateChange((event, session) => {
+      setUser(session?.user ?? null);
+      setLoading(false);
+    });
+
+    return () => subscription.unsubscribe();
+  }, []);
+
+  // Přihlášení
+  const handleLogin = async () => {
+    if (!loginForm.email || !loginForm.password) {
+      setError('Vyplňte email a heslo');
+      return;
+    }
+
+    setLoginLoading(true);
+    setError('');
+
+    try {
+      const { data, error } = await auth.signIn(loginForm.email, loginForm.password);
+      
+      if (error) {
+        if (error.message.includes('Invalid login credentials')) {
+          setError('Neplatné přihlašovací údaje');
+        } else {
+          setError(error.message);
+        }
+      }
+    } catch (err) {
+      setError('Chyba při přihlašování');
+    } finally {
+      setLoginLoading(false);
     }
   };
 
-  const handleLogout = () => {
-    setIsAuthenticated(false);
+  // Odhlášení
+  const handleLogout = async () => {
+    await auth.signOut();
     setCurrentPage('dashboard');
     setLoginForm({ email: '', password: '' });
   };
@@ -88,6 +130,21 @@ const AstraCoreApp = () => {
     </div>
   );
 
+  // Loading screen
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-slate-900 flex items-center justify-center">
+        <div className="text-center">
+          <Logo />
+          <div className="mt-8 flex items-center justify-center">
+            <Loader2 className="w-6 h-6 animate-spin text-orange-400 mr-2" />
+            <span className="text-slate-300">Načítání...</span>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   // Login Page
   const LoginPage = () => (
     <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 flex items-center justify-center px-4">
@@ -99,6 +156,12 @@ const AstraCoreApp = () => {
         
         <div className="bg-slate-800 rounded-xl p-8 shadow-2xl border border-slate-700">
           <div className="space-y-6">
+            {error && (
+              <div className="bg-red-500/10 border border-red-500/20 rounded-lg p-3">
+                <p className="text-red-400 text-sm text-center">{error}</p>
+              </div>
+            )}
+
             <div>
               <label className="block text-sm font-medium text-slate-300 mb-2">
                 Email
@@ -106,9 +169,13 @@ const AstraCoreApp = () => {
               <input
                 type="email"
                 value={loginForm.email}
-                onChange={(e) => setLoginForm({...loginForm, email: e.target.value})}
+                onChange={(e) => {
+                  setLoginForm({...loginForm, email: e.target.value});
+                  setError('');
+                }}
                 className="w-full px-4 py-3 bg-slate-700 border border-slate-600 rounded-lg text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-orange-400 focus:border-transparent"
                 placeholder="vas.email@astracore.pro"
+                disabled={loginLoading}
               />
             </div>
             
@@ -120,14 +187,19 @@ const AstraCoreApp = () => {
                 <input
                   type={showPassword ? "text" : "password"}
                   value={loginForm.password}
-                  onChange={(e) => setLoginForm({...loginForm, password: e.target.value})}
+                  onChange={(e) => {
+                    setLoginForm({...loginForm, password: e.target.value});
+                    setError('');
+                  }}
                   className="w-full px-4 py-3 bg-slate-700 border border-slate-600 rounded-lg text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-orange-400 focus:border-transparent pr-12"
                   placeholder="••••••••"
+                  disabled={loginLoading}
                 />
                 <button
                   type="button"
                   onClick={() => setShowPassword(!showPassword)}
                   className="absolute right-3 top-1/2 transform -translate-y-1/2 text-slate-400 hover:text-white transition-colors"
+                  disabled={loginLoading}
                 >
                   {showPassword ? <EyeOff size={20} /> : <Eye size={20} />}
                 </button>
@@ -136,9 +208,17 @@ const AstraCoreApp = () => {
             
             <button
               onClick={handleLogin}
-              className="w-full bg-gradient-to-r from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700 text-white font-medium py-3 px-6 rounded-lg transition-all duration-200 transform hover:scale-[1.02] focus:outline-none focus:ring-2 focus:ring-orange-400 focus:ring-offset-2 focus:ring-offset-slate-800"
+              disabled={loginLoading}
+              className="w-full bg-gradient-to-r from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700 text-white font-medium py-3 px-6 rounded-lg transition-all duration-200 transform hover:scale-[1.02] focus:outline-none focus:ring-2 focus:ring-orange-400 focus:ring-offset-2 focus:ring-offset-slate-800 disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none"
             >
-              Přihlásit se
+              {loginLoading ? (
+                <div className="flex items-center justify-center">
+                  <Loader2 className="w-4 h-4 animate-spin mr-2" />
+                  Přihlašování...
+                </div>
+              ) : (
+                'Přihlásit se'
+              )}
             </button>
           </div>
           
@@ -146,6 +226,7 @@ const AstraCoreApp = () => {
             <button 
               onClick={handleForgotPassword}
               className="text-sm text-orange-400 hover:text-orange-300 transition-colors"
+              disabled={loginLoading}
             >
               Zapomněli jste heslo?
             </button>
@@ -203,13 +284,14 @@ const AstraCoreApp = () => {
         <h2 className="text-xl font-semibold text-white mb-4">Rychlé akce</h2>
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
           {[
-            { label: 'Nová zakázka', icon: Briefcase },
-            { label: 'Vystavit fakturu', icon: DollarSign },
-            { label: 'Přidat klienta', icon: Users },
-            { label: 'Nový zápis do deníku', icon: Building2 },
+            { label: 'Nová zakázka', icon: Briefcase, action: () => setCurrentPage('zakazky') },
+            { label: 'Vystavit fakturu', icon: DollarSign, action: () => setCurrentPage('finance') },
+            { label: 'Přidat klienta', icon: Users, action: () => setCurrentPage('klienti') },
+            { label: 'Nový zápis do deníku', icon: Building2, action: () => setCurrentPage('zakazky') },
           ].map((action, index) => (
             <button
               key={index}
+              onClick={action.action}
               className="flex flex-col items-center p-4 bg-slate-700 rounded-lg hover:bg-slate-600 transition-colors group"
             >
               <action.icon className="w-8 h-8 text-orange-400 group-hover:text-orange-300 mb-2" />
@@ -217,6 +299,19 @@ const AstraCoreApp = () => {
             </button>
           ))}
         </div>
+      </div>
+
+      {/* Welcome message with user info */}
+      <div className="bg-slate-800 rounded-xl p-6 border border-slate-700">
+        <h2 className="text-xl font-semibold text-white mb-2">
+          Vítejte zpět! 👋
+        </h2>
+        <p className="text-slate-400">
+          Přihlášen jako: <span className="text-orange-400">{user?.email}</span>
+        </p>
+        <p className="text-slate-500 text-sm mt-1">
+          Naposledy přihlášen: {new Date().toLocaleString('cs-CZ')}
+        </p>
       </div>
     </div>
   );
@@ -232,6 +327,7 @@ const AstraCoreApp = () => {
             <h1 className="text-2xl font-bold text-white">Finance</h1>
             <div className="bg-slate-800 rounded-xl p-6 border border-slate-700">
               <p className="text-slate-400">Finanční přehledy a faktury</p>
+              <p className="text-sm text-slate-500 mt-2">Připojeno k databázi - data budou načítána z Supabase</p>
             </div>
           </div>
         );
@@ -241,6 +337,7 @@ const AstraCoreApp = () => {
             <h1 className="text-2xl font-bold text-white">Zakázky</h1>
             <div className="bg-slate-800 rounded-xl p-6 border border-slate-700">
               <p className="text-slate-400">Přehled všech zakázek</p>
+              <p className="text-sm text-slate-500 mt-2">Připojeno k databázi - data budou načítána z Supabase</p>
             </div>
           </div>
         );
@@ -252,6 +349,7 @@ const AstraCoreApp = () => {
             </h1>
             <div className="bg-slate-800 rounded-xl p-6 border border-slate-700">
               <p className="text-slate-400">Obsah sekce bude implementován...</p>
+              <p className="text-sm text-slate-500 mt-2">Připojeno k databázi - data budou načítána z Supabase</p>
             </div>
           </div>
         );
@@ -326,7 +424,9 @@ const AstraCoreApp = () => {
               <Menu size={24} />
             </button>
             <div className="flex items-center space-x-4">
-              <span className="text-slate-300">Vítejte zpět!</span>
+              <span className="text-slate-300">
+                {user?.email?.split('@')[0]}
+              </span>
             </div>
           </div>
         </header>
@@ -346,7 +446,7 @@ const AstraCoreApp = () => {
     </div>
   );
 
-  return isAuthenticated ? <MainApp /> : <LoginPage />;
+  return user ? <MainApp /> : <LoginPage />;
 };
 
 export default AstraCoreApp;
