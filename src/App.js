@@ -57,7 +57,7 @@ const AstraCoreApp = () => {
     setError('');
 
     try {
-      const { data, error } = await auth.signIn(loginForm.email, loginForm.password);
+      const { error } = await auth.signIn(loginForm.email, loginForm.password);
       
       if (error) {
         if (error.message.includes('Invalid login credentials')) {
