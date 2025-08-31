@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { 
   LayoutDashboard, 
   DollarSign, 
@@ -36,6 +36,10 @@ const AstraCoreApp = () => {
     setIsAuthenticated(false);
     setCurrentPage('dashboard');
     setLoginForm({ email: '', password: '' });
+  };
+
+  const handleForgotPassword = () => {
+    alert('Funkce "Zapomenuté heslo" bude implementována později');
   };
 
   const navigationItems = [
@@ -139,9 +143,12 @@ const AstraCoreApp = () => {
           </div>
           
           <div className="mt-6 text-center">
-            <a href="#" className="text-sm text-orange-400 hover:text-orange-300 transition-colors">
+            <button 
+              onClick={handleForgotPassword}
+              className="text-sm text-orange-400 hover:text-orange-300 transition-colors"
+            >
               Zapomněli jste heslo?
-            </a>
+            </button>
           </div>
         </div>
       </div>
