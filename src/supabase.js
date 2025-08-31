@@ -5,7 +5,6 @@ const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS
 
 export const supabase = createClient(supabaseUrl, supabaseKey)
 
-// Auth helper
 export const auth = {
   signIn: (email, password) => supabase.auth.signInWithPassword({ email, password }),
   signOut: () => supabase.auth.signOut(),
